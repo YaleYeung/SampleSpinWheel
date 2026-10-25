@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>(SAMPLE) Spin Wheel with Stats</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: white;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        h1 {
+            color: #2f3542;
+            margin: 0 0 20px 0;
+            font-size: 1.8rem;
+            letter-spacing: -0.3px;
+        }
+
+        /* Centered Wheel Section */
+        .wheel-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 360px;
+            height: 360px;
+            margin-bottom: 25px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Marker pointing to the winning section (top center) */
+        .marker {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #ff4757;
+            z-index: 10;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+            transition: border-top-color 0.1s ease;
+        }
+
+        .spin-btn {
+            background: linear-gradient(135deg, #1e90ff, #3742fa);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(30, 144, 255, 0.4);
+            transition: transform 0.1s ease, background 0.2s ease;
+        }
+
+        .spin-btn:active {
+            transform: scale(0.95);
+        }
+
+        .spin-btn:disabled {
+            background: #a4b0be;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Stats Panel positioned on the right-hand margin */
+        .stats-panel {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #f8f9fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 16px;
+            padding: 24px;
+            width: 220px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        }
+
+        .stats-panel h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.1rem;
+            color: #2f3542;
+            border-bottom: 2px solid #e1e4e8;
+            padding-bottom: 8px;
+        }
+
+        #statsList {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.95rem;
+        }
+
+        .stat-label-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .color-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #2f3542;
+        }
+
+        /* Modal Overlay & Popup Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-box {
+            background: #ffffff;
+            color: #2f3542;
+            padding: 30px 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            transform: scale(0.8);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-width: 300px;
+            width: 80%;
+        }
+
+        .modal-overlay.active .modal-box {
+            transform: scale(1);
+        }
+
+        .modal-box p {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 0 0 20px 0;
+            color: #2f3542;
+        }
+
+        .modal-close-btn {
+            background: #2f3542;
+            color: #ffffff;
+            border: none;
+            padding: 10px 24px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .modal-close-btn:hover {
+            background: #1e90ff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Centered Wheel Section -->
+    <div class="wheel-section">
+        <h1>[SAMPLE] Spin wheel</h1>
+        <div class="wheel-container">
+            <div id="marker" class="marker"></div>
+            <canvas id="wheelCanvas" width="400" height="400"></canvas>
+        </div>
+
+        <button id="spinBtn" class="spin-btn" onclick="spinWheel()">SPIN</button>
+    </div>
+
+    <!-- Right Margin Stats Panel -->
+    <div class="stats-panel">
+        <h3>Probability Stats</h3>
+        <div id="statsList">
+            <!-- Dynamically populated from script weights -->
+        </div>
+    </div>
+
+    <!-- Result Popup Modal -->
+    <div id="resultModal" class="modal-overlay">
+        <div class="modal-box">
+            <p id="modalResultText">A</p>
+            <button class="modal-close-btn" onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const wheelItems = [
+            { label: "A", weight: 5,  color: "#ff4757" },
+            { label: "B", weight: 40, color: "#8A2BE2" },
+            { label: "C", weight: 30, color: "#2ed573" },
+            { label: "D", weight: 15, color: "#ffa502" },
+            { label: "E", weight: 10, color: "#1e90ff" }
+        ];
+
+        const canvas = document.getElementById("wheelCanvas");
+        const ctx = canvas.getContext("2d");
+        const spinBtn = document.getElementById("spinBtn");
+        const marker = document.getElementById("marker");
+        const resultModal = document.getElementById("resultModal");
+        const modalResultText = document.getElementById("modalResultText");
+        const statsList = document.getElementById("statsList");
+
+        const totalWeight = wheelItems.reduce((sum, item) => sum + item.weight, 0);
+
+        // Automatically populate stats panel with percentages
+        function renderStats() {
+            statsList.innerHTML = "";
+            wheelItems.forEach(item => {
+                const percentage = ((item.weight / totalWeight) * 100).toFixed(1);
+                const statItem = document.createElement("div");
+                statItem.className = "stat-item";
+                statItem.innerHTML = `
+                    <div class="stat-label-wrap">
+                        <span class="color-dot" style="background-color: ${item.color};"></span>
+                        <span style="color: #2f3542; font-weight: 500;">${item.label}</span>
+                    </div>
+                    <span class="stat-value">${percentage}%</span>
+                `;
+                statsList.appendChild(statItem);
+            });
+        }
+        renderStats();
+
+        // Compute angle ranges for each item based on weights
+        let currentAngle = 0;
+        const slices = wheelItems.map(item => {
+            const angleSize = (item.weight / totalWeight) * 2 * Math.PI;
+            const startAngle = currentAngle;
+            const endAngle = currentAngle + angleSize;
+            currentAngle = endAngle;
+            return { ...item, startAngle, endAngle, angleSize };
+        });
+
+        let rotationAngle = 0;
+        let isSpinning = false;
+        let isModalOpen = false;
+        let currentSpeed = 0.005; // Target idle speed
+        let displaySpeed = 0.005; // Current animated speed for smooth acceleration
+
+        // Helper function to find which slice is currently underneath the top marker
+        function updateMarkerColor() {
+            const normalizedRotation = (rotationAngle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+            const pointerAngle = (3 * Math.PI / 2 - normalizedRotation + 2 * Math.PI) % (2 * Math.PI);
+
+            for (let slice of slices) {
+                if (pointerAngle >= slice.startAngle && pointerAngle < slice.endAngle) {
+                    marker.style.borderTopColor = slice.color;
+                    break;
+                }
+            }
+        }
+
+        // Draw the wheel initially and set marker color
+        drawWheel();
+        updateMarkerColor();
+
+        // Ambient idle spin loop with smooth acceleration support
+        function idleSpin() {
+            if (!isSpinning && !isModalOpen) {
+                // Smoothly interpolate current display speed towards target speed
+                displaySpeed += (currentSpeed - displaySpeed) * 0.05;
+                rotationAngle += displaySpeed;
+                drawWheel();
+                updateMarkerColor();
+            }
+            requestAnimationFrame(idleSpin);
+        }
+        requestAnimationFrame(idleSpin);
+
+        function drawWheel() {
+            const center = canvas.width / 2;
+            const radius = center - 10;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(center, center);
+            ctx.rotate(rotationAngle);
+            ctx.translate(-center, -center);
+
+            slices.forEach(slice => {
+                // Draw Slice
+                ctx.beginPath();
+                ctx.moveTo(center, center);
+                ctx.arc(center, center, radius, slice.startAngle, slice.endAngle);
+                ctx.closePath();
+                ctx.fillStyle = slice.color;
+                ctx.fill();
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw Text
+                ctx.save();
+                ctx.translate(center, center);
+                ctx.rotate(slice.startAngle + slice.angleSize / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 16px sans-serif";
+                ctx.fillText(slice.label, radius - 25, 6);
+                ctx.restore();
+            });
+
+            ctx.restore();
+
+            // Draw center circle knob
+            ctx.beginPath();
+            ctx.arc(center, center, 20, 0, 2 * Math.PI);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "#dcdde1";
+            ctx.stroke();
+        }
+
+        function spinWheel() {
+            if (isSpinning || isModalOpen) return;
+            isSpinning = true;
+            spinBtn.disabled = true;
+
+            // 1. Pick winner based on weights (Probability matching)
+            let randomWeightPoint = Math.random() * totalWeight;
+            let accumulatedWeight = 0;
+            let winningIndex = 0;
+
+            for (let i = 0; i < slices.length; i++) {
+                accumulatedWeight += slices[i].weight;
+                if (randomWeightPoint <= accumulatedWeight) {
+                    winningIndex = i;
+                    break;
+                }
+            }
+
+            const winningSlice = slices[winningIndex];
+
+            // 2. Calculate target rotation angle so the pointer points to the winner
+            const winningSliceCenterAngle = winningSlice.startAngle + winningSlice.angleSize / 2;
+            const targetPointerAngle = -Math.PI / 2;
+            const extraSpins = (Math.floor(Math.random() * 4) + 5) * 2 * Math.PI;
+            
+            const normalizedCurrentRotation = rotationAngle % (2 * Math.PI);
+            const targetRotation = rotationAngle + extraSpins + (targetPointerAngle - winningSliceCenterAngle - normalizedCurrentRotation + 4 * Math.PI) % (2 * Math.PI);
+
+            // 3. Smooth animation using easing
+            const startTime = performance.now();
+            const duration = 4000; // Spin duration in milliseconds (4 seconds)
+            const initialRotation = rotationAngle;
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+
+                rotationAngle = initialRotation + (targetRotation - initialRotation) * easeOut;
+                drawWheel();
+                updateMarkerColor();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    isSpinning = false;
+                    spinBtn.disabled = false;
+                    
+                    // Trigger the popup modal
+                    showModal(winningSlice.label);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function showModal(resultText) {
+            isModalOpen = true;
+            modalResultText.textContent = resultText;
+            resultModal.classList.add("active");
+        }
+
+        function closeModal() {
+            resultModal.classList.remove("active");
+            isModalOpen = false;
+            // Temporarily boost speed for a smooth acceleration visual effect back to normal idle speed
+            displaySpeed = 0.001; 
+        }
+    </script>
+</body>
+</html>
